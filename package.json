@@ -1,0 +1,24 @@
+{
+  "name": "nuxt-auth-module",
+  "version": "0.0.1",
+  "description": "A token based auth module for Nuxt.js.",
+  "main": "lib/module.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Nuxt.js",
+    "auth"
+  ],
+  "author": "h.jamie",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tjeeay/nuxt-auth-module.git"
+  },
+  "homepage": "https://github.com/tjeeay/nuxt-auth-module#readme",
+  "dependencies": {
+    "path-to-regexp": "^6.1.0",
+    "query-string": "^6.12.1"
+  }
+}

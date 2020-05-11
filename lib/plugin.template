@@ -1,0 +1,70 @@
+import Vue from 'vue'
+import queryString from 'query-string'
+import { match } from 'path-to-regexp'
+import middleware from './middleware'
+
+const matchOptions = { encode: encodeURI, decode: decodeURIComponent }
+
+const options = <%= JSON.stringify(options) %>
+const identifier = '<%= options.identifier %>'
+
+function appendQuery(url, key, value) {
+  const [path, str] = url.split('?')
+
+  const query = queryString.parse(str)
+  query[key] = value
+
+  return `${path}?${queryString.stringify(query)}`
+}
+
+// auth mixin
+<% if (typeof options.returnUrlKey === 'string') { %>
+  Vue.mixin({
+    computed: {
+      ['$<%= options.returnUrlKey %>']() {
+        const returnUrl = this.$route.query['<%= options.returnUrlKey %>']
+        return decodeURIComponent(returnUrl)
+      }
+    }
+  })
+<% } %>
+
+// auth middleware
+middleware.auth = async function({ store, route, redirect }) {
+  const checkIsLoggedIn = store.dispatch('<%= options.checkIsLoggedInAction %>')
+  const isLoggedIn = await Promise.resolve(checkIsLoggedIn)
+
+  const isMatched =  (options.routePaths || []).some(path => match(path, matchOptions)(route.path))
+
+  if (!isLoggedIn && isMatched) {
+    const clearAuthToken = store.dispatch('<%= options.clearAuthTokenAction %>')
+    await Promise.resolve(clearAuthToken)
+
+    const { loginUrl, returnUrlKey } = options
+    const url = appendQuery(loginUrl, returnUrlKey, route.fullPath)
+    redirect(url)
+  }
+}
+
+// auth plugin
+export default function({ $axios, store, redirect }) {
+  $axios.onRequest(config => {
+    config[identifier] = { ...options, ...config[identifier] }
+    return config
+  })
+
+  $axios.onResponseError(async error => {
+    if (error.response.status === 401) {
+      await Promise.resolve(store.dispatch('<%= options.clearAuthTokenAction %>'))
+
+      const { enableRedirect, loginUrl, returnUrl, returnUrlKey } = config[identifier]
+      if (enableRedirect) {
+        const url = returnUrl
+          ? appendQuery(loginUrl, returnUrlKey, returnUrl)
+          : loginUrl
+        return redirect(url)
+      }
+    }
+    return Promise.reject(error)
+  })
+}
