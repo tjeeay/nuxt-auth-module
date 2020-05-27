@@ -3,7 +3,7 @@ import queryString from 'query-string'
 import { match } from 'path-to-regexp'
 import middleware from './middleware'
 
-const matchOptions = { encode: encodeURI, decode: decodeURIComponent }
+const matchOptions = { start: true, end: false, encode: encodeURI, decode: decodeURIComponent }
 
 const options = <%= JSON.stringify(options) %>
 const identifier = '<%= options.identifier %>'
@@ -30,24 +30,39 @@ function appendQuery(url, key, value) {
 <% } %>
 
 // auth middleware
-middleware.auth = async function({ store, route, redirect }) {
+middleware['<%= options.middleware %>'] = async function({ store, route, redirect }) {
   const checkIsLoggedIn = store.dispatch('<%= options.checkIsLoggedInAction %>')
   const isLoggedIn = await Promise.resolve(checkIsLoggedIn)
 
-  const isMatched =  (options.routePaths || []).some(path => match(path, matchOptions)(route.path))
+  if (!isLoggedIn) {
+    const isMatched =  (options.routePaths || []).some(path => match(path, matchOptions)(route.path))
+    if (isMatched) {
+      const clearAuthToken = store.dispatch('<%= options.clearAuthTokenAction %>')
+      await Promise.resolve(clearAuthToken)
 
-  if (!isLoggedIn && isMatched) {
-    const clearAuthToken = store.dispatch('<%= options.clearAuthTokenAction %>')
-    await Promise.resolve(clearAuthToken)
-
-    const { loginUrl, returnUrlKey } = options
-    const url = appendQuery(loginUrl, returnUrlKey, route.fullPath)
-    redirect(url)
+      const { loginUrl, returnUrlKey } = options
+      const url = appendQuery(loginUrl, returnUrlKey, route.fullPath)
+      redirect(url)
+    }
   }
 }
 
 // auth plugin
-export default function({ $axios, store, redirect }) {
+export default async function({ $axios, store, redirect, req }) {
+  if (process.server && req.$session.sessionId) {
+    await store.dispatch('<%= options.setAuthTokenAction %>', req.$session.sessionId)
+  }
+
+  const authToken = await Promise.resolve(store.dispatch('<%= options.fetchAuthTokenAction %>'))
+  if (authToken) {
+    // set global authentication header
+    $axios.setToken(authToken.token, authToken.type)
+    // refresh token if needed
+    if (authToken.needRefreshToken) {
+      store.dispatch('<%= options.refreshTokenAction %>')
+    }
+  }
+
   $axios.onRequest(config => {
     config[identifier] = { ...options, ...config[identifier] }
     return config
@@ -55,10 +70,9 @@ export default function({ $axios, store, redirect }) {
 
   $axios.onResponseError(async error => {
     if (error.response.status === 401) {
-      await Promise.resolve(store.dispatch('<%= options.clearAuthTokenAction %>'))
-
-      const { enableRedirect, loginUrl, returnUrl, returnUrlKey } = config[identifier]
-      if (enableRedirect) {
+      const { forceRedirect, loginUrl, returnUrl, returnUrlKey } = error.config[identifier]
+      if (forceRedirect) {
+        await Promise.resolve(store.dispatch('<%= options.clearAuthTokenAction %>'))
         const url = returnUrl
           ? appendQuery(loginUrl, returnUrlKey, returnUrl)
           : loginUrl

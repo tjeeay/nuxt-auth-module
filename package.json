@@ -1,6 +1,6 @@
 {
   "name": "nuxt-auth-module",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A token based auth module for Nuxt.js.",
   "main": "lib/module.js",
   "scripts": {
