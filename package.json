@@ -18,7 +18,7 @@
   },
   "homepage": "https://github.com/tjeeay/nuxt-auth-module#readme",
   "dependencies": {
-    "path-to-regexp": "^6.1.0",
+    "path-to-regexp": "^8.0.0",
     "query-string": "^6.12.1"
   }
 }
